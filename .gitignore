@@ -1,23 +1,28 @@
 # Dependencies
-node_modules
-
-# CDK
-cdk.out
+node_modules/
+**/node_modules/
 
 # Build outputs
-dist
-build
+dist/
+build/
+**/dist/
+**/build/
+
+# CDK
+infra/cdk.out/
+**/cdk.out/
 
 # Environment
 .env
 .env.*
+frontend/.env
+frontend/.env.*
 
 # Logs
 logs
 *.log
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
 pnpm-debug.log*
 
 # Editor

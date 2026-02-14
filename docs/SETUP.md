@@ -1,10 +1,45 @@
-# Spidey Social - Infrastructure Setup Guide
+# Spidey Social - Setup Guide
 
-This guide walks you through setting up and deploying the Spidey Social backend infrastructure (Slice 1) using AWS CDK.
+This guide covers local verification and optional AWS deployment.
 
-## Prerequisites
+## Local Verify
 
-Before you begin, ensure you have:
+Run these commands to verify the project builds and runs locally (no AWS required).
+
+**Frontend:**
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+In another terminal, run a production build:
+
+```bash
+cd frontend
+npm run build
+```
+
+**Infra:**
+
+```bash
+cd infra
+npm install
+npx cdk synth
+```
+
+If `cdk synth` succeeds, the stack template is valid. Deploy is optional (see below).
+
+---
+
+## Deploy to AWS (Optional)
+
+Deploy later when you have AWS credentials. Use: `npx cdk bootstrap` (once per account/region), then `npx cdk deploy`, then `npx cdk destroy` to tear down.
+
+### Prerequisites for deploy
+
+Before deploying, ensure you have:
 
 1. **Node.js** (v18 or later) – [Download](https://nodejs.org/)
 2. **AWS CLI** – [Install guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
@@ -110,3 +145,9 @@ After `cdk deploy`, you get these outputs:
 - **"Need to perform AWS calls for account"** – Run `aws configure` and ensure credentials work with `aws sts get-caller-identity`
 - **Bootstrap required** – Run `cdk bootstrap` in the same region you're deploying to
 - **Deploy fails** – Check the error message; common causes: quota limits, missing IAM permissions, or region restrictions
+
+## Security
+
+- **Never commit AWS credentials** (e.g. access keys, secret keys, session tokens) to the repo.
+- Use `aws configure` or environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`) locally.
+- If credentials are leaked, rotate them immediately in the AWS IAM console.
