@@ -204,7 +204,30 @@ Create `frontend/.env.local` with the stack output values so the dev server can 
 
 ---
 
-## 9. Tech Stack Summary
+## 9. Operational Metrics Dashboard
+
+A **CloudWatch Dashboard** (`SpideySocialMvp-Ops`) is deployed with the stack and shows:
+
+| Widget | Metrics |
+|--------|---------|
+| **Lambda Invocations** | Total invocations per Lambda (create-web, list-webs, swing-in, etc.) |
+| **Lambda Duration (Latency)** | Average execution time (ms) per Lambda |
+| **Lambda Errors** | Error count per Lambda |
+| **Lambda Concurrent Executions** | Number of functions running simultaneously |
+| **REST API — Request Count** | Total HTTP requests to the REST API |
+| **REST API — Latency** | API Gateway response time (ms) |
+| **REST API — 4xx / 5xx Errors** | Client and server error counts |
+| **DynamoDB — Consumed Capacity** | Read and write capacity units consumed |
+
+**Access:** After deploy, use the `OpsDashboardUrl` stack output, or in AWS Console: **CloudWatch → Dashboards → SpideySocialMvp-Ops**.
+
+No extra configuration is required — Lambda, API Gateway, and DynamoDB publish these metrics automatically to CloudWatch. The dashboard uses a 3-hour default time range; you can adjust it in the CloudWatch console.
+
+**Optional:** For deeper Lambda insights (memory utilization, init duration), enable [Lambda Insights](https://docs.aws.amazon.com/lambda/latest/dg/monitoring-insights.html) on your functions.
+
+---
+
+## 10. Tech Stack Summary
 
 | Layer | Technology |
 |-------|------------|

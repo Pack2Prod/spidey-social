@@ -8,6 +8,7 @@ import { S3StaticWebsiteOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as apigatewayv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import { WebSocketLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
+import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as iam from 'aws-cdk-lib/aws-iam';
@@ -318,6 +319,89 @@ export class SpideySocialMvpStack extends cdk.Stack {
       { authorizer }
     );
 
+    // --- CloudWatch Dashboard (operational metrics) ---
+    const dashboard = new cloudwatch.Dashboard(this, 'OpsDashboard', {
+      dashboardName: 'SpideySocialMvp-Ops',
+      defaultInterval: cdk.Duration.hours(3),
+    });
+
+    const lambdaFunctions = [
+      createWebFn,
+      listWebsFn,
+      listMyWebsFn,
+      listMessagesFn,
+      listMySwingsFn,
+      swingInFn,
+      sendMessageFn,
+      wsConnectFn,
+      wsDisconnectFn,
+    ];
+
+    dashboard.addWidgets(
+      new cloudwatch.Row(
+        new cloudwatch.GraphWidget({
+          title: 'Lambda Invocations',
+          left: lambdaFunctions.map((fn) => fn.metricInvocations({ statistic: 'Sum' })),
+          width: 12,
+          period: cdk.Duration.minutes(5),
+        }),
+        new cloudwatch.GraphWidget({
+          title: 'Lambda Duration (ms) — Latency',
+          left: lambdaFunctions.map((fn) => fn.metricDuration({ statistic: 'Average' })),
+          width: 12,
+          period: cdk.Duration.minutes(5),
+        })
+      ),
+      new cloudwatch.Row(
+        new cloudwatch.GraphWidget({
+          title: 'Lambda Errors',
+          left: lambdaFunctions.map((fn) => fn.metricErrors({ statistic: 'Sum' })),
+          width: 12,
+          period: cdk.Duration.minutes(5),
+        }),
+        new cloudwatch.GraphWidget({
+          title: 'Lambda Concurrent Executions',
+          left: [lambda.Function.metricAllConcurrentExecutions()],
+          width: 12,
+          period: cdk.Duration.minutes(1),
+        })
+      ),
+      new cloudwatch.Row(
+        new cloudwatch.GraphWidget({
+          title: 'REST API — Request Count',
+          left: [this.restApi.metricCount({ statistic: 'Sum' })],
+          width: 12,
+          period: cdk.Duration.minutes(5),
+        }),
+        new cloudwatch.GraphWidget({
+          title: 'REST API — Latency (ms)',
+          left: [this.restApi.metricLatency({ statistic: 'Average' })],
+          width: 12,
+          period: cdk.Duration.minutes(5),
+        })
+      ),
+      new cloudwatch.Row(
+        new cloudwatch.GraphWidget({
+          title: 'REST API — 4xx / 5xx Errors',
+          left: [
+            this.restApi.metric('4XXError', { statistic: 'Sum' }),
+            this.restApi.metric('5XXError', { statistic: 'Sum' }),
+          ],
+          width: 12,
+          period: cdk.Duration.minutes(5),
+        }),
+        new cloudwatch.GraphWidget({
+          title: 'DynamoDB — Consumed Read/Write Capacity',
+          left: [
+            this.table.metricConsumedReadCapacityUnits({ statistic: 'Sum' }),
+            this.table.metricConsumedWriteCapacityUnits({ statistic: 'Sum' }),
+          ],
+          width: 12,
+          period: cdk.Duration.minutes(5),
+        })
+      )
+    );
+
     // --- Outputs ---
     new cdk.CfnOutput(this, 'UserPoolId', {
       value: this.userPool.userPoolId,
@@ -350,6 +434,10 @@ export class SpideySocialMvpStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'WebSocketUrl', {
       value: `wss://${this.webSocketApi.apiId}.execute-api.${this.region}.amazonaws.com/${wsStage.stageName}`,
       description: 'WebSocket URL — add to frontend .env as VITE_WS_URL',
+    });
+    new cdk.CfnOutput(this, 'OpsDashboardUrl', {
+      value: `https://${this.region}.console.aws.amazon.com/cloudwatch/home?region=${this.region}#dashboards:name=SpideySocialMvp-Ops`,
+      description: 'CloudWatch Ops Dashboard — latency, invocations, errors, resource usage',
     });
   }
 }

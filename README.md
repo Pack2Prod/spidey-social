@@ -67,7 +67,7 @@ npm install
 ./scripts/deploy.sh
 ```
 
-The deploy script fetches stack outputs, builds the app with the correct env vars, syncs to S3, and invalidates CloudFront. The site URL will be printed at the end.
+The deploy script fetches stack outputs, builds the app with the correct env vars, syncs to S3, and invalidates CloudFront. The site URL will be printed at the end. Use `OpsDashboardUrl` to view operational metrics (latency, invocations, errors) in CloudWatch.
 
 ### 4. Local development
 
@@ -113,7 +113,7 @@ spidey-social/
 
 | Document | Description |
 |----------|-------------|
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architecture, AWS services, DynamoDB schema, API reference, key flows, deployment |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architecture, AWS services, DynamoDB schema, API reference, key flows, deployment, operational metrics |
 | [docs/AWS_SETUP.md](docs/AWS_SETUP.md) | AWS account, IAM, CLI, CDK bootstrap |
 | [docs/MVP_DEPLOY.md](docs/MVP_DEPLOY.md) | Legacy minimal deploy (S3 + DynamoDB only) |
 
