@@ -1,8 +1,9 @@
 # Spidey Social — Project Story
 
 ## Inspiration
+Most social apps feel either too public (everything lives forever) or too noisy (infinite scrolling, spam, and posts that are nowhere near you). We wanted something that feels like a real neighborhood: quick, local, lightweight updates you can act on right now, then they disappear.
 
-We wanted social that feels local and temporary—like sticky notes in your neighborhood, not a permanent billboard. The idea: posts tied to a place and a short lifetime (30–120 min), so you discover what’s happening *right here, right now* and can “swing in” to chat with the author. No infinite feed, no forever data—just your friendly neighborhood network.
+So we built **Spidey Social**, a “Friendly Neighborhood Network” where posts are tied to your location, visible only within a radius, and expire automatically. It’s for the moments that matter in the next hour: “pickup soccer behind the gym,” “free pizza in the lobby,” “study group in 10 minutes,” or “anyone want to grab coffee?”
 
 ## What it does
 
