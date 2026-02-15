@@ -83,15 +83,17 @@ flowchart TB
 
 | Entity | pk | sk | Purpose |
 |--------|-----|-----|---------|
-| Web (post) | `WEB#webId` | `META` | Post metadata. Has `gsi1pk=WEB`, `gsi2pk=USER#ownerId` for queries. |
+| Web (post) | `WEB#webId` | `META` | Post metadata. Has `gsi1pk=WEB`, `gsi2pk=USER#ownerId`. When created with location: `lat`, `lng`, `visibilityRadiusMi`, `gsi_geopk=GEO#<geohash5>`, `gsi_geosk=createdAt` for geo-indexed feed. |
 | Swing-in | `WEB#webId` | `SWINGIN#userId` | User swung into post. `gsi2pk=USER#swingerId` for "my chats" list. |
 | Chat message | `CHAT#webId` | `MSG#timestamp` | Message in chat thread. |
-| WebSocket connection | `WS#CONNECTION` | connectionId | All live connections (for broadcast). |
-| WebSocket user | `WS#USER#userId` | connectionId | Connections per user (for targeted push). |
+| WebSocket connection | `WS#CONNECTION` | connectionId | Live connections. When client sends location: `lat`, `lng`, `gsi_conn_geopk=GEO#<geohash5>`, `gsi_conn_geosk=connectionId` for targeted fan-out. |
+| WebSocket user | `WS#USER#userId` | connectionId | Connections per user (swing_in, message_new). Same optional geo fields as above. |
 
 **Global Secondary Indexes:**
-- **gsi1** (`gsi1pk`, `gsi1sk`) — List all webs by recency (Feed)
+- **gsi1** (`gsi1pk`, `gsi1sk`) — List all webs by recency (fallback when no location)
 - **gsi2** (`gsi2pk`, `gsi2sk`) — List by user: my webs, my swings
+- **gsi_geo** (`gsi_geopk`, `gsi_geosk`) — Webs by geohash cell (e.g. `GEO#dq259`) + time. Used for geo-indexed feed (list-webs with lat/lng).
+- **gsi_conn_geo** (`gsi_conn_geopk`, `gsi_conn_geosk`) — Connections by geohash cell. Used for targeted `web_added` push (only notify connections in same/neighboring cells).
 
 ---
 
@@ -115,9 +117,9 @@ Base URL: `https://<api-id>.execute-api.<region>.amazonaws.com/prod`
 
 | Route | Purpose |
 |-------|---------|
-| `$connect` | Client connects with `?token=<jwt>`. ws-connect validates JWT, stores connection in DynamoDB. |
+| `$connect` | Client connects with `?token=<jwt>` and optionally `&lat=&lng=`. ws-connect validates JWT, stores connection (and geo keys when lat/lng provided) for targeted fan-out. |
 | `$disconnect` | ws-disconnect removes connection from DynamoDB. |
-| Push events | Lambdas call `ApiGatewayManagementApi.postToConnection` to send: `web_added`, `message_new`, `swing_in` |
+| Push events | Lambdas call `ApiGatewayManagementApi.postToConnection` to send: `web_added` (only to connections in post’s geo cells), `message_new`, `swing_in` |
 
 ---
 
@@ -126,9 +128,9 @@ Base URL: `https://<api-id>.execute-api.<region>.amazonaws.com/prod`
 ### Create post
 
 1. User submits post in Post tab; frontend calls `POST /webs` with content, coords, radius, ttl.
-2. create-web Lambda writes `WEB#webId` + `META` to DynamoDB.
-3. Lambda fans out `web_added` to all WebSocket connections (create-web has `execute-api:ManageConnections`).
-4. Clients with Feed open receive event; they filter by radius and append new post if applicable.
+2. create-web Lambda writes `WEB#webId` + `META` to DynamoDB. When lat/lng present, also sets `gsi_geopk=GEO#<geohash5>`, `gsi_geosk=createdAt` so the web appears in the geo index.
+3. Lambda performs **targeted fan-out**: queries `gsi_conn_geo` for the post’s geohash cell and 8 neighbors, collects connection IDs in range (Haversine within visibility radius), then calls `postToConnection` only for those. Connections without location or outside range do not receive `web_added`.
+4. Clients with Feed open in range receive the event and append the new post.
 
 ### Swing-in
 
@@ -153,9 +155,10 @@ Base URL: `https://<api-id>.execute-api.<region>.amazonaws.com/prod`
 | [infrastructure/lib/spidey-social-mvp-stack.ts](../infrastructure/lib/spidey-social-mvp-stack.ts) | CDK stack — defines all AWS resources |
 | [infrastructure/lambdas/](../infrastructure/lambdas/) | Lambda handlers: create-web, list-webs, list-my-webs, list-my-swings, swing-in, send-message, list-messages, ws-connect, ws-disconnect |
 | [frontend/api/webs.ts](../frontend/api/webs.ts) | REST API client — all HTTP calls |
-| [frontend/lib/WebSocketContext.tsx](../frontend/lib/WebSocketContext.tsx) | WebSocket connect, subscribe, handle events |
+| [frontend/lib/WebSocketContext.tsx](../frontend/lib/WebSocketContext.tsx) | WebSocket connect (sends lat/lng when available), subscribe, handle events |
 | [frontend/lib/auth.ts](../frontend/lib/auth.ts) | Cognito auth (Amplify) |
 | [frontend/lib/geolocation.ts](../frontend/lib/geolocation.ts) | Browser Geolocation API wrapper |
+| [infrastructure/lambdas/lib/geohash.js](../infrastructure/lambdas/lib/geohash.js) | Geohash encode + neighbors (precision 5); used by create-web, list-webs, ws-connect |
 | [docs/AWS_SETUP.md](AWS_SETUP.md) | Prerequisites: AWS account, IAM, CLI, CDK bootstrap |
 | [docs/MVP_DEPLOY.md](MVP_DEPLOY.md) | Legacy minimal deploy (S3 + DynamoDB only) |
 
@@ -227,7 +230,25 @@ No extra configuration is required — Lambda, API Gateway, and DynamoDB publish
 
 ---
 
-## 10. Tech Stack Summary
+## 10. Scalability (Geo-Indexed Feed and Targeted Fan-Out)
+
+The app is built to scale globally while keeping a **10-mile neighborhood** model: each user only sees and receives pushes for activity in their area.
+
+**Feed (list-webs):**
+- When `lat` and `lng` are provided, the Lambda computes the user’s **geohash** (precision 5, ~5 km cells) and **9 neighboring cells**. It queries **gsi_geo** only for those 9 partitions, merges and dedupes by webId, then filters by Haversine (user radius + each web’s visibility radius) and sorts by distance. No global scan.
+- When lat/lng are not provided, it falls back to **gsi1** (last 50 webs globally).
+
+**Real-time (create-web fan-out):**
+- On new post, the Lambda queries **gsi_conn_geo** for the post’s geohash cell and 8 neighbors to get connection IDs in that area. It optionally filters by Haversine (within post’s visibility radius) and calls `postToConnection` only for those. Connections without stored location or outside range do not receive `web_added`.
+
+**Connection location (ws-connect):**
+- The frontend sends optional `lat` and `lng` on the WebSocket URL when connecting. ws-connect stores them and `gsi_conn_geopk=GEO#<geohash5>`, `gsi_conn_geosk=connectionId` on the connection items so create-web can target by geo.
+
+**Why it scales:** Work per request is bounded by a fixed number of partitions (9 cells) and by local activity, not by total webs or total connections worldwide. See [infrastructure/lambdas/lib/geohash.js](../infrastructure/lambdas/lib/geohash.js), [list-webs/index.js](../infrastructure/lambdas/list-webs/index.js), and [create-web/index.js](../infrastructure/lambdas/create-web/index.js).
+
+---
+
+## 11. Tech Stack Summary
 
 | Layer | Technology |
 |-------|------------|

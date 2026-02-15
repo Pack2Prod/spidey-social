@@ -1,5 +1,6 @@
 const AWS = require('aws-sdk');
 const dynamodb = new AWS.DynamoDB.DocumentClient();
+const { encode: geohashEncode, neighbors: geohashNeighbors } = require('./geohash');
 
 const TABLE_NAME = process.env.TABLE_NAME;
 const WS_ENDPOINT = process.env.WS_ENDPOINT;
@@ -79,36 +80,55 @@ async function handleCreateWeb(event) {
     item.lat = parsedLat;
     item.lng = parsedLng;
     item.visibilityRadiusMi = visibilityMi;
+    const geohash5 = geohashEncode(parsedLat, parsedLng, 5);
+    item.gsi_geopk = 'GEO#' + geohash5;
+    item.gsi_geosk = now;
   }
 
   await dynamodb.put({ TableName: TABLE_NAME, Item: item }).promise();
 
-  // Fan out to WebSocket connections
-  if (WS_ENDPOINT) {
+  // Targeted fan-out: only push to connections in same/neighboring geo cells (and within visibility)
+  if (WS_ENDPOINT && item.lat != null && item.lng != null) {
     try {
-      const conns = await dynamodb.query({
-        TableName: TABLE_NAME,
-        KeyConditionExpression: 'pk = :pk',
-        ExpressionAttributeValues: { ':pk': 'WS#CONNECTION' },
-      }).promise();
+      const cells = geohashNeighbors(geohashEncode(item.lat, item.lng, 5));
+      const visibilityMi = item.visibilityRadiusMi ?? 10;
+      const seen = new Set();
+      const connectionsToNotify = [];
+
+      for (const cell of cells) {
+        const result = await dynamodb.query({
+          TableName: TABLE_NAME,
+          IndexName: 'gsi_conn_geo',
+          KeyConditionExpression: 'gsi_conn_geopk = :pk',
+          ExpressionAttributeValues: { ':pk': 'GEO#' + cell },
+        }).promise();
+
+        for (const row of result.Items || []) {
+          if (seen.has(row.connectionId)) continue;
+          seen.add(row.connectionId);
+          if (row.lat != null && row.lng != null) {
+            const mi = haversineMi(item.lat, item.lng, row.lat, row.lng);
+            if (mi > visibilityMi) continue;
+          }
+          connectionsToNotify.push(row.connectionId);
+        }
+      }
 
       const wsApi = new AWS.ApiGatewayManagementApi({ endpoint: WS_ENDPOINT.replace('wss://', 'https://') });
       const webFormatted = formatWeb(item, null, null);
-      if (item.lat != null && item.lng != null) {
-        webFormatted.lat = item.lat;
-        webFormatted.lng = item.lng;
-        webFormatted.visibilityRadiusMi = item.visibilityRadiusMi ?? 2;
-      }
+      webFormatted.lat = item.lat;
+      webFormatted.lng = item.lng;
+      webFormatted.visibilityRadiusMi = item.visibilityRadiusMi ?? 2;
       const payload = JSON.stringify({ type: 'web_added', web: webFormatted });
 
-      for (const row of conns.Items || []) {
+      for (const connectionId of connectionsToNotify) {
         try {
-          await wsApi.postToConnection({ ConnectionId: row.sk, Data: payload }).promise();
+          await wsApi.postToConnection({ ConnectionId: connectionId, Data: payload }).promise();
         } catch (e) {
           if (e.statusCode === 410) {
             await dynamodb.delete({
               TableName: TABLE_NAME,
-              Key: { pk: 'WS#CONNECTION', sk: row.sk },
+              Key: { pk: 'WS#CONNECTION', sk: connectionId },
             }).promise();
           }
         }

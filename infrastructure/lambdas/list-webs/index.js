@@ -1,7 +1,10 @@
 const AWS = require('aws-sdk');
 const dynamodb = new AWS.DynamoDB.DocumentClient();
+const { encode: geohashEncode, neighbors: geohashNeighbors } = require('./geohash');
 
 const TABLE_NAME = process.env.TABLE_NAME;
+const PER_CELL_LIMIT = 25;
+const MAX_WEBS = 50;
 
 function parseQuery(query) {
   const lat = query?.lat != null ? parseFloat(query.lat) : null;
@@ -35,33 +38,60 @@ function formatDistance(item, userLat, userLng) {
 
 exports.handler = async (event) => {
   const now = Date.now();
+  const nowSec = Math.floor(now / 1000);
   const q = event.queryStringParameters || {};
   const { lat, lng, radius } = parseQuery(q);
 
-  const result = await dynamodb.query({
-    TableName: TABLE_NAME,
-    IndexName: 'gsi1',
-    KeyConditionExpression: 'gsi1pk = :pk',
-    ExpressionAttributeValues: { ':pk': 'WEB' },
-    ScanIndexForward: false,
-    Limit: 50,
-  }).promise();
-
-  let items = (result.Items || []).filter((item) => item.ttlEpoch && item.ttlEpoch > Math.floor(now / 1000));
+  let items;
 
   if (lat != null && lng != null) {
-    items = items
+    // Geo-indexed path: query webs in user's cell + 8 neighbors
+    const geohash5 = geohashEncode(lat, lng, 5);
+    const cells = geohashNeighbors(geohash5);
+    const byWebId = new Map();
+
+    for (const cell of cells) {
+      const result = await dynamodb.query({
+        TableName: TABLE_NAME,
+        IndexName: 'gsi_geo',
+        KeyConditionExpression: 'gsi_geopk = :pk',
+        ExpressionAttributeValues: { ':pk': 'GEO#' + cell },
+        ScanIndexForward: false,
+        Limit: PER_CELL_LIMIT,
+      }).promise();
+
+      for (const item of result.Items || []) {
+        if (!item.webId || (item.ttlEpoch && item.ttlEpoch <= nowSec)) continue;
+        if (!byWebId.has(item.webId)) byWebId.set(item.webId, item);
+      }
+    }
+
+    items = Array.from(byWebId.values())
       .map((item) => ({ item, dist: formatDistance(item, lat, lng) }))
       .filter(({ item, dist }) => {
-        if (radius != null && (item.lat == null || item.lng == null)) return false;
+        if (item.lat == null || item.lng == null) return false;
         if (radius != null && dist.mi > radius) return false;
         const maxVisible = item.visibilityRadiusMi ?? 10;
         if (dist.mi > maxVisible) return false;
         return true;
       })
       .sort((a, b) => a.dist.mi - b.dist.mi)
+      .slice(0, MAX_WEBS)
       .map(({ item }) => item);
+  } else {
+    // No location: fallback to global recent (GSI1)
+    const result = await dynamodb.query({
+      TableName: TABLE_NAME,
+      IndexName: 'gsi1',
+      KeyConditionExpression: 'gsi1pk = :pk',
+      ExpressionAttributeValues: { ':pk': 'WEB' },
+      ScanIndexForward: false,
+      Limit: MAX_WEBS,
+    }).promise();
+
+    items = (result.Items || []).filter((item) => item.ttlEpoch && item.ttlEpoch > nowSec);
   }
+
 
   const webs = items.map((item) => formatWeb(item, lat, lng));
 

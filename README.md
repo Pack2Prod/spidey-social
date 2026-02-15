@@ -9,11 +9,11 @@ Create short posts near you, discover what’s happening nearby, swing in to cha
 ## Features
 
 - **Posts (webs)** — Create posts with location and visibility radius; they expire after 30–120 min
-- **Feed** — Browse posts within 0.5–10 mi of you
+- **Feed** — Browse posts within 0.5–10 mi of you (geo-indexed for scalability)
 - **Sense (radar)** — Visual radar for post direction and distance
 - **Swing-in** — One swing per post; swinging in opens a chat with the post owner
 - **Chat** — Messaging with post owners after swing-in
-- **Real-time** — WebSocket push for new posts and messages
+- **Real-time** — WebSocket push for new posts and messages (targeted by location)
 - **Profile** — My posts, sign-out
 
 ---
@@ -113,7 +113,7 @@ spidey-social/
 
 | Document | Description |
 |----------|-------------|
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architecture, AWS services, DynamoDB schema, API reference, key flows, deployment, operational metrics |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architecture, AWS services, DynamoDB schema, API reference, key flows, deployment, operational metrics, scalability (geo-indexed feed and targeted fan-out) |
 | [docs/AWS_SETUP.md](docs/AWS_SETUP.md) | AWS account, IAM, CLI, CDK bootstrap |
 | [docs/MVP_DEPLOY.md](docs/MVP_DEPLOY.md) | Legacy minimal deploy (S3 + DynamoDB only) |
 

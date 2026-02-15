@@ -82,6 +82,18 @@ export class SpideySocialMvpStack extends cdk.Stack {
       sortKey: { name: 'gsi2sk', type: dynamodb.AttributeType.NUMBER },
       projectionType: dynamodb.ProjectionType.ALL,
     });
+    this.table.addGlobalSecondaryIndex({
+      indexName: 'gsi_geo',
+      partitionKey: { name: 'gsi_geopk', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'gsi_geosk', type: dynamodb.AttributeType.NUMBER },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+    this.table.addGlobalSecondaryIndex({
+      indexName: 'gsi_conn_geo',
+      partitionKey: { name: 'gsi_conn_geopk', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'gsi_conn_geosk', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
 
     // --- S3 bucket with static website hosting (no CloudFront, no autoDelete to avoid Lambda) ---
     this.webBucket = new s3.Bucket(this, 'WebBucket', {
