@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --noir-black: #0A0A0B;
+  --noir-charcoal: #1A1A1F;
+  --noir-graphite: #2A2A32;
+  --noir-steel: #3D3D47;
+  --noir-ash: #6B6B76;
+  --noir-smoke: #9E9EA8;
+  --noir-fog: #C8C8D0;
+  --noir-light: #E8E8EC;
+  --web-crimson: #8B1A1A;
+  --web-red: #C62828;
+  --web-ember: #D4442A;
+  --web-amber: #D4A038;
+  --web-amber-dim: #8B7028;
+  --rain-blue: #1A2A3D;
+  --shadow-purple: #1A1525;
+}
+
+body {
+  background-color: var(--noir-black);
+  margin: 0;
+  overflow-x: hidden;
+  font-family: 'Source Sans 3', sans-serif;
+  color: var(--noir-fog);
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.6) 100%);
+}
+
+@keyframes radarSweep {
+  0% { opacity: 0.3; transform: scale(0.1); }
+  100% { opacity: 0; transform: scale(1); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+@keyframes webAppear {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes slideInFromTop {
+  from { opacity: 0; transform: translate(-50%, -20px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.notification-from-top {
+  animation: slideInFromTop 0.3s ease-out forwards;
+}
+
+.radar-sweep {
+  animation: radarSweep 3s ease-out infinite;
+}
+
+.timer-pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.web-post-animate {
+  animation: webAppear 0.35s ease-out forwards;
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--noir-black);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--noir-steel);
+  border-radius: 2px;
+}
