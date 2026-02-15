@@ -65,7 +65,8 @@ const Onboarding: React.FC<OnboardingProps> = ({ onStart }) => {
     try {
       configureAuth();
       await confirmRegistration(email, confirmCode);
-      onStart();
+      setConfirmCode('');
+      setMode('signin');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Invalid or expired code.');
     } finally {

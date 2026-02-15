@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { getCurrentUserInfo } from '../lib/auth';
+import { listMyWebs } from '../api/webs';
+import PostCard from '../components/PostCard';
+import type { WebPost } from '../types';
 
 interface ProfileProps {
   onSignOut: () => void;
@@ -7,9 +10,27 @@ interface ProfileProps {
 
 const Profile: React.FC<ProfileProps> = ({ onSignOut }) => {
   const [user, setUser] = useState<{ email?: string; username?: string }>({});
+  const [myPosts, setMyPosts] = useState<WebPost[]>([]);
+  const [myPostsLoading, setMyPostsLoading] = useState(true);
 
   useEffect(() => {
     getCurrentUserInfo().then(setUser);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setMyPostsLoading(true);
+    listMyWebs()
+      .then((webs) => {
+        if (!cancelled) setMyPosts(webs);
+      })
+      .catch(() => {
+        if (!cancelled) setMyPosts([]);
+      })
+      .finally(() => {
+        if (!cancelled) setMyPostsLoading(false);
+      });
+    return () => { cancelled = true; };
   }, []);
 
   const displayName = (user.email || user.username || 'hero').split('@')[0].toUpperCase();
@@ -34,7 +55,7 @@ const Profile: React.FC<ProfileProps> = ({ onSignOut }) => {
         {handle} • {user.email || '—'}
       </p>
 
-      <div className="w-full space-y-4">
+      <div className="w-full space-y-4 mb-8">
         <div className="bg-noir-charcoal p-4 rounded-xl border border-noir-steel flex justify-between items-center">
           <span className="text-sm text-noir-smoke font-semibold uppercase tracking-widest">Active Webs</span>
           <span className="font-mono text-web-amber">—</span>
@@ -43,6 +64,21 @@ const Profile: React.FC<ProfileProps> = ({ onSignOut }) => {
           <span className="text-sm text-noir-smoke font-semibold uppercase tracking-widest">Successful Connections</span>
           <span className="font-mono text-web-amber">—</span>
         </div>
+      </div>
+
+      <h3 className="w-full font-display font-black text-lg text-noir-light uppercase tracking-widest mb-3">
+        My Posts
+      </h3>
+      <div className="w-full space-y-3">
+        {myPostsLoading ? (
+          <p className="text-noir-ash font-mono text-sm animate-pulse">Loading...</p>
+        ) : myPosts.length === 0 ? (
+          <p className="text-noir-ash font-mono text-sm italic">No active webs. Spin one from the Post tab.</p>
+        ) : (
+          myPosts.map((post) => (
+            <PostCard key={post.id} post={post} onSwingIn={() => {}} isOwnPost />
+          ))
+        )}
       </div>
 
       <p className="mt-6 text-xs text-noir-ash text-center">

@@ -93,7 +93,13 @@ async function handleCreateWeb(event) {
       }).promise();
 
       const wsApi = new AWS.ApiGatewayManagementApi({ endpoint: WS_ENDPOINT.replace('wss://', 'https://') });
-      const payload = JSON.stringify({ type: 'web_added', web: formatWeb(item, null, null) });
+      const webFormatted = formatWeb(item, null, null);
+      if (item.lat != null && item.lng != null) {
+        webFormatted.lat = item.lat;
+        webFormatted.lng = item.lng;
+        webFormatted.visibilityRadiusMi = item.visibilityRadiusMi ?? 2;
+      }
+      const payload = JSON.stringify({ type: 'web_added', web: webFormatted });
 
       for (const row of conns.Items || []) {
         try {

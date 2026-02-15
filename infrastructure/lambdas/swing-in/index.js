@@ -73,13 +73,17 @@ exports.handler = async (event) => {
     };
   }
 
+  const createdAt = Date.now();
   await dynamodb.put({
     TableName: TABLE_NAME,
     Item: {
       ...swingInKey,
       userId,
-      createdAt: Date.now(),
+      webOwnerId: webOwnerId || web.userId || web.user_id,
+      createdAt,
       ttlEpoch: web.ttlEpoch,
+      gsi2pk: `USER#${userId}`,
+      gsi2sk: createdAt,
     },
   }).promise();
 

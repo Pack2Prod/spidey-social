@@ -33,3 +33,5 @@ export interface WebPost {
 }
 
 export type AppTab = 'feed' | 'sense' | 'post' | 'chat' | 'profile' | 'onboarding';
+
+export type NavigateHandler = (tab: AppTab, openChatWebId?: string) => void;

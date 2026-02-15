@@ -54,6 +54,37 @@ export async function createWeb(
   return res.json();
 }
 
+export interface SwingChat {
+  webId: string;
+  webOwnerId: string;
+  userName: string;
+  userHandle: string;
+  content: string;
+  category: string;
+  timestamp: string;
+  ttl: number;
+}
+
+export async function listMySwings(): Promise<SwingChat[]> {
+  const token = await getAuthToken();
+  const res = await fetchApi(`${baseUrl}/users/me/swings`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`List my swings failed: ${res.status}`);
+  const data = await res.json();
+  return data.swings || [];
+}
+
+export async function listMyWebs(): Promise<WebPost[]> {
+  const token = await getAuthToken();
+  const res = await fetchApi(`${baseUrl}/users/me/webs`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`List my webs failed: ${res.status}`);
+  const data = await res.json();
+  return data.webs || [];
+}
+
 export async function listWebs(
   coords?: { lat: number; lng: number } | null,
   radiusMi?: number | null
@@ -74,7 +105,7 @@ export async function listWebs(
 export async function swingIn(
   webId: string,
   coords?: { lat: number; lng: number } | null
-): Promise<void> {
+): Promise<{ isNew: boolean }> {
   const token = await getAuthToken();
   const body: Record<string, unknown> = {};
   if (coords) {
@@ -93,4 +124,40 @@ export async function swingIn(
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || `Swing in failed: ${res.status}`);
   }
+  return { isNew: res.status === 201 };
+}
+
+export interface ChatMessage {
+  id: string;
+  userId: string;
+  userName: string;
+  content: string;
+  createdAt: number;
+}
+
+export async function listMessages(webId: string): Promise<ChatMessage[]> {
+  const token = await getAuthToken();
+  const res = await fetchApi(`${baseUrl}/chats/${webId}/messages`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`List messages failed: ${res.status}`);
+  const data = await res.json();
+  return data.messages || [];
+}
+
+export async function sendMessage(webId: string, content: string): Promise<ChatMessage> {
+  const token = await getAuthToken();
+  const res = await fetchApi(`${baseUrl}/chats/${webId}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ content: content.trim().slice(0, 500) }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Send message failed: ${res.status}`);
+  }
+  return res.json();
 }

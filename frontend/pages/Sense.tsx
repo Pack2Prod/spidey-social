@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { listWebs, swingIn } from '../api/webs';
+import { listWebs, listMySwings, swingIn } from '../api/webs';
 import { getPosition } from '../lib/geolocation';
+import { getCurrentUserId } from '../lib/auth';
 import { useRadius } from '../lib/RadiusContext';
 import Card from '../components/Card';
 import Button from '../components/Button';
@@ -9,11 +10,13 @@ import type { WebPost } from '../types';
 import type { AppTab } from '../types';
 
 interface SenseProps {
-  onNavigate?: (tab: AppTab) => void;
+  onNavigate?: (tab: AppTab, openChatWebId?: string) => void;
 }
 
 const Sense: React.FC<SenseProps> = ({ onNavigate }) => {
   const { radiusMi, setRadiusMi, radii } = useRadius();
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [swungWebIds, setSwungWebIds] = useState<Set<string>>(new Set());
   const [webs, setWebs] = useState<WebPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -55,10 +58,24 @@ const Sense: React.FC<SenseProps> = ({ onNavigate }) => {
   }, [radii, setRadiusMi]);
 
   useEffect(() => {
+    getCurrentUserId().then(setCurrentUserId);
+  }, []);
+
+  useEffect(() => {
+    listMySwings().then((swings) => {
+      setSwungWebIds(new Set(swings.map((s) => s.webId)));
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     fetchWebs(radiusMi);
   }, [radiusMi, fetchWebs]);
 
-  const websOnRadar = webs.filter((w) => w.radarX != null && w.radarY != null);
+  const isOwnPost = selectedWeb != null && currentUserId != null && selectedWeb.userId === currentUserId;
+  const hasSwung = selectedWeb != null && swungWebIds.has(selectedWeb.id);
+  const websOnRadar = webs.filter(
+    (w) => w.radarX != null && w.radarY != null && w.userId !== currentUserId && !swungWebIds.has(w.id)
+  );
 
   if (loading) {
     return (
@@ -188,23 +205,33 @@ const Sense: React.FC<SenseProps> = ({ onNavigate }) => {
               </div>
 
               <div className="flex gap-2">
-                <Button
-                  variant="primary"
-                  className="flex-1"
-                  disabled={swingingIn}
+                {isOwnPost ? (
+                  <span className="flex-1 py-2 text-center text-noir-ash font-mono text-sm italic">Your post</span>
+                ) : hasSwung ? (
+                  <span className="flex-1 py-2 text-center text-noir-ash font-mono text-sm italic">Already swung in</span>
+                ) : (
+                  <Button
+                    variant="primary"
+                    className="flex-1"
+                    disabled={swingingIn}
                   onClick={async () => {
                     setSwingingIn(true);
                     try {
                       const coords = await getPosition();
-                      await swingIn(selectedWeb.id, coords ?? undefined);
+                      const { isNew } = await swingIn(selectedWeb.id, coords ?? undefined);
+                      if (isNew) {
+                        setSwungWebIds((prev) => new Set([...prev, selectedWeb.id]));
+                        setSelectedWeb(null);
+                        onNavigate?.('chat', selectedWeb.id);
+                      }
                       setWebs((prev) =>
                         prev.map((p) =>
                           p.id === selectedWeb.id
-                            ? { ...p, joinedCount: p.joinedCount + 1 }
+                            ? { ...p, joinedCount: isNew ? p.joinedCount + 1 : p.joinedCount }
                             : p
                         )
                       );
-                      setSelectedWeb((w) => (w ? { ...w, joinedCount: w.joinedCount + 1 } : null));
+                      setSelectedWeb((w) => (w ? { ...w, joinedCount: isNew ? w.joinedCount + 1 : w.joinedCount } : null));
                     } catch {
                       /* ignore */
                     } finally {
@@ -214,6 +241,7 @@ const Sense: React.FC<SenseProps> = ({ onNavigate }) => {
                 >
                   {swingingIn ? '...' : '🕸 Swing In'}
                 </Button>
+                )}
                 <Button variant="secondary" onClick={() => { setSelectedWeb(null); onNavigate?.('feed'); }}>
                   Feed
                 </Button>

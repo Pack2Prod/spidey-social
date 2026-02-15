@@ -3,15 +3,18 @@ import { AppTab } from './types';
 import Layout from './components/Layout';
 import BottomNav from './components/BottomNav';
 import { RadiusProvider } from './lib/RadiusContext';
+import { WebSocketProvider } from './lib/WebSocketContext';
 import Feed from './pages/Feed';
 import Sense from './pages/Sense';
 import Post from './pages/Post';
+import Chat from './pages/Chat';
 import Onboarding from './pages/Onboarding';
 import Profile from './pages/Profile';
 import { configureAuth, isAuthenticated, logout } from './lib/auth';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AppTab>('onboarding');
+  const [openChatWebId, setOpenChatWebId] = useState<string | undefined>();
   const [authChecked, setAuthChecked] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
 
@@ -53,21 +56,21 @@ const App: React.FC = () => {
     );
   }
 
+  const handleNavigate: (tab: AppTab, openChatWebId?: string) => void = (tab, webId) => {
+    setActiveTab(tab);
+    if (webId) setOpenChatWebId(webId);
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'feed':
-        return <Feed />;
+        return <Feed onNavigate={handleNavigate} />;
       case 'sense':
-        return <Sense onNavigate={setActiveTab} />;
+        return <Sense onNavigate={handleNavigate} />;
       case 'post':
         return <Post onPostSuccess={() => setActiveTab('feed')} />;
       case 'chat':
-        return (
-          <div className="flex flex-col justify-center items-center h-screen px-10 text-center gap-6">
-            <h1 className="font-display font-black text-2xl text-noir-light uppercase tracking-widest">Whispers in the dark</h1>
-            <p className="font-display italic text-noir-ash">This secure channel is currently under maintenance. Try again later at midnight.</p>
-          </div>
-        );
+        return <Chat openChatWebId={openChatWebId} />;
       case 'profile':
         return <Profile onSignOut={handleSignOut} />;
       default:
@@ -77,10 +80,12 @@ const App: React.FC = () => {
 
   return (
     <RadiusProvider>
-      <Layout>
-        {renderContent()}
-        <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
-      </Layout>
+      <WebSocketProvider>
+        <Layout>
+          {renderContent()}
+          <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+        </Layout>
+      </WebSocketProvider>
     </RadiusProvider>
   );
 };

@@ -155,6 +155,42 @@ export class SpideySocialMvpStack extends cdk.Stack {
     });
     this.table.grantReadData(listWebsFn);
 
+    const listMyWebsFn = new lambda.Function(this, 'ListMyWebs', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset(path.join(lambdasPath, 'list-my-webs')),
+      environment: { TABLE_NAME: this.table.tableName },
+      timeout: cdk.Duration.seconds(15),
+    });
+    this.table.grantReadData(listMyWebsFn);
+
+    const sendMessageFn = new lambda.Function(this, 'SendMessage', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset(path.join(lambdasPath, 'send-message')),
+      environment: { TABLE_NAME: this.table.tableName },
+      timeout: cdk.Duration.seconds(10),
+    });
+    this.table.grantReadWriteData(sendMessageFn);
+
+    const listMessagesFn = new lambda.Function(this, 'ListMessages', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset(path.join(lambdasPath, 'list-messages')),
+      environment: { TABLE_NAME: this.table.tableName },
+      timeout: cdk.Duration.seconds(10),
+    });
+    this.table.grantReadData(listMessagesFn);
+
+    const listMySwingsFn = new lambda.Function(this, 'ListMySwings', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset(path.join(lambdasPath, 'list-my-swings')),
+      environment: { TABLE_NAME: this.table.tableName },
+      timeout: cdk.Duration.seconds(15),
+    });
+    this.table.grantReadData(listMySwingsFn);
+
     const swingInFn = new lambda.Function(this, 'SwingIn', {
       runtime: lambda.Runtime.NODEJS_20_X,
       handler: 'index.handler',
@@ -168,7 +204,11 @@ export class SpideySocialMvpStack extends cdk.Stack {
       runtime: lambda.Runtime.NODEJS_20_X,
       handler: 'index.handler',
       code: lambda.Code.fromAsset(path.join(lambdasPath, 'ws-connect')),
-      environment: { TABLE_NAME: this.table.tableName },
+      environment: {
+        TABLE_NAME: this.table.tableName,
+        COGNITO_USER_POOL_ID: this.userPool.userPoolId,
+        COGNITO_CLIENT_ID: this.userPoolClient.userPoolClientId,
+      },
     });
     this.table.grantReadWriteData(wsConnectFn);
 
@@ -195,7 +235,14 @@ export class SpideySocialMvpStack extends cdk.Stack {
     const wsEndpoint = `https://${this.webSocketApi.apiId}.execute-api.${this.region}.amazonaws.com/${wsStage.stageName}`;
     createWebFn.addEnvironment('WS_ENDPOINT', wsEndpoint);
     swingInFn.addEnvironment('WS_ENDPOINT', wsEndpoint);
+    sendMessageFn.addEnvironment('WS_ENDPOINT', wsEndpoint);
     swingInFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['execute-api:ManageConnections'],
+        resources: [`arn:aws:execute-api:${this.region}:${this.account}:${this.webSocketApi.apiId}/*`],
+      })
+    );
+    sendMessageFn.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ['execute-api:ManageConnections'],
         resources: [`arn:aws:execute-api:${this.region}:${this.account}:${this.webSocketApi.apiId}/*`],
@@ -239,6 +286,35 @@ export class SpideySocialMvpStack extends cdk.Stack {
     swingIn.addMethod(
       'POST',
       new apigateway.LambdaIntegration(swingInFn, { proxy: true }),
+      { authorizer }
+    );
+
+    const users = this.restApi.root.addResource('users');
+    const me = users.addResource('me');
+    const meWebs = me.addResource('webs');
+    meWebs.addMethod(
+      'GET',
+      new apigateway.LambdaIntegration(listMyWebsFn, { proxy: true }),
+      { authorizer }
+    );
+    const meSwings = me.addResource('swings');
+    meSwings.addMethod(
+      'GET',
+      new apigateway.LambdaIntegration(listMySwingsFn, { proxy: true }),
+      { authorizer }
+    );
+
+    const chats = this.restApi.root.addResource('chats');
+    const chatWebId = chats.addResource('{webId}');
+    const chatMessages = chatWebId.addResource('messages');
+    chatMessages.addMethod(
+      'GET',
+      new apigateway.LambdaIntegration(listMessagesFn, { proxy: true }),
+      { authorizer }
+    );
+    chatMessages.addMethod(
+      'POST',
+      new apigateway.LambdaIntegration(sendMessageFn, { proxy: true }),
       { authorizer }
     );
 

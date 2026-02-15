@@ -7,9 +7,13 @@ import { Clock, MapPin, Zap } from 'lucide-react';
 interface PostCardProps {
   post: WebPost;
   onSwingIn: (id: string) => void;
+  isOwnPost?: boolean;
+  /** When true, user already swung into this post (can only swing once) */
+  hasSwung?: boolean;
 }
 
-const PostCard: React.FC<PostCardProps> = ({ post, onSwingIn }) => {
+const PostCard: React.FC<PostCardProps> = ({ post, onSwingIn, isOwnPost, hasSwung }) => {
+  const canSwing = !isOwnPost && !hasSwung;
   return (
     <div className="web-post-animate mb-5">
       <Card>
@@ -45,9 +49,15 @@ const PostCard: React.FC<PostCardProps> = ({ post, onSwingIn }) => {
 
         <div className="flex justify-between items-center pt-2 border-t border-noir-steel/30">
           <span className="text-xs text-noir-ash font-mono">{post.joinedCount} heroes swinging in</span>
-          <Button variant="primary" className="!py-2 !px-4 !text-xs" onClick={() => onSwingIn(post.id)}>
-            🕸 Swing In
-          </Button>
+          {canSwing ? (
+            <Button variant="primary" className="!py-2 !px-4 !text-xs" onClick={() => onSwingIn(post.id)}>
+              🕸 Swing In
+            </Button>
+          ) : hasSwung ? (
+            <span className="text-xs text-noir-ash font-mono italic">Already swung in</span>
+          ) : (
+            <span className="text-xs text-noir-ash font-mono italic">Your post</span>
+          )}
         </div>
       </Card>
     </div>
