@@ -1,0 +1,22 @@
+# CDK output (entire directory and all contents)
+cdk.out/
+
+# Dependencies
+node_modules/
+lambdas/*/node_modules/
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# CDK staging
+.cdk.staging/
